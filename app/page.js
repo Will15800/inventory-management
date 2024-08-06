@@ -1,7 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Box, Stack, Typography, Button, Modal, TextField } from '@mui/material'
+import { Box, Stack, Typography, Button, IconButton, Modal, TextField, InputAdornment } from '@mui/material'
+import { createTheme, ThemeProvider } from '@mui/material/styles'
+import AddIcon from '@mui/icons-material/Add'
+import RemoveIcon from '@mui/icons-material/Remove'
+import DeleteIcon from '@mui/icons-material/Delete'
+import CssBaseline from '@mui/material/CssBaseline'
 import { firestore } from '@/firebase'
 import {
   collection,
@@ -28,10 +33,28 @@ const style = {
   gap: 3,
 }
 
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: '#00796b',
+    },
+    secondary: {
+      main: '#c2185b',
+    },
+    background: {
+      default: '#804173', // Set the default background color to orange
+    },
+  },
+  typography: {
+    fontFamily: 'Inter, sans-serif',
+  },
+});
+
 export default function Home() {
   const [inventory, setInventory] = useState([]) //manage list of inventory items
   const [open, setOpen] = useState(false) //manage modal open state
   const [itemName, setItemName] = useState('') //manage item name input
+  const [searchQuery, setSearchQuery] = useState(''); //manage search query which is used to filter inventory items
 
   const updateInventory = async () => {
     const snapshot = query(collection(firestore, 'inventory')) //get all inventory items
@@ -47,14 +70,12 @@ export default function Home() {
     updateInventory()
   }, [])
   
-  const addItem = async (item) => {
+  const incrementItem = async (item) => {
     const docRef = doc(collection(firestore, 'inventory'), item)
     const docSnap = await getDoc(docRef)
-    if (docSnap.exists()) { //if item already exists, increment quantity, else create new item
+    if (docSnap.exists()) {
       const { quantity } = docSnap.data()
       await setDoc(docRef, { quantity: quantity + 1 })
-    } else {
-      await setDoc(docRef, { quantity: 1 })
     }
     await updateInventory()
   }
@@ -72,11 +93,37 @@ export default function Home() {
     }
     await updateInventory()
   }
+  const deleteItem = async (item) => {
+    const docRef = doc(collection(firestore, 'inventory'), item)
+    const docSnap = await getDoc(docRef)
+    if (docSnap.exists()) {
+      await deleteDoc(docRef)
+    }
+    await updateInventory()
+  }
+
+  const addItem = async (item) => {
+    const docRef = doc(collection(firestore, 'inventory'), item)
+    const docSnap = await getDoc(docRef)
+    if (docSnap.exists()) { //if item already exists, increment quantity, else create new item
+      const { quantity } = docSnap.data()
+      await setDoc(docRef, { quantity: quantity + 1 })
+    } else {
+      await setDoc(docRef, { quantity: 1 })
+    }
+    await updateInventory()
+  }
+
+  const filteredInventory = inventory.filter(item => 
+    item.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const handleOpen = () => setOpen(true)
   const handleClose = () => setOpen(false)
 
   return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
     <Box
       width="100vw"
       height="100vh"
@@ -118,24 +165,36 @@ export default function Home() {
           </Stack>
         </Box>
       </Modal>
-      <Button variant="contained" onClick={handleOpen}>
+      
+
+        <Typography variant={'h2'} color={'#c2c0c0'} textAlign={'center'}>
+          Inventory Items
+        </Typography>
+        <Button variant="contained" onClick={handleOpen}>
         Add New Item
       </Button>
+        <TextField
+          id="search"
+          label="Search Items"
+          variant="outlined"
+          fullWidth
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+              </InputAdornment>
+            ),
+          }}
+          sx={{ marginBottom: 2, width: '800px' }}
+        />
       <Box border={'1px solid #333'}>
-        <Box
-          width="800px"
-          height="100px"
-          bgcolor={'#ADD8E6'}
-          display={'flex'}
-          justifyContent={'center'}
-          alignItems={'center'}
-        >
-          <Typography variant={'h2'} color={'#333'} textAlign={'center'}>
-            Inventory Items
-          </Typography>
-        </Box>
+
+      
+
         <Stack width="800px" height="300px" spacing={2} overflow={'auto'}>
-          {inventory.map(({name, quantity}) => (
+          
+          {filteredInventory.map(({name, quantity}) => (
             <Box
               key={name}
               width="100%"
@@ -146,19 +205,31 @@ export default function Home() {
               bgcolor={'#f0f0f0'}
               paddingX={5}
             >
-              <Typography variant={'h3'} color={'#333'} textAlign={'center'}>
-                {name.charAt(0).toUpperCase() + name.slice(1)}
-              </Typography>
-              <Typography variant={'h3'} color={'#333'} textAlign={'center'}>
-                Quantity: {quantity}
-              </Typography>
-              <Button variant="contained" onClick={() => removeItem(name)}>
-                Remove
-              </Button>
+              <Stack direction="column" alignItems="center" flex={1}>
+                  <Typography variant={'h3'} color={'#333'} textAlign={'center'}>
+                    {name.charAt(0).toUpperCase() + name.slice(1)}
+                  </Typography>
+                  <Typography variant={'h4'} color={'#333'} textAlign={'center'}>
+                    Quantity: {quantity}
+                  </Typography>
+                </Stack>
+
+                <Stack direction="row" spacing={2}>
+                  <Button variant="contained" startIcon={<AddIcon />} onClick={() => incrementItem(name)}>
+                    Add
+                  </Button>
+                  <Button variant="contained" startIcon={<RemoveIcon />} onClick={() => removeItem(name)}>
+                    Remove
+                  </Button>
+                  <Button variant="contained" startIcon={<DeleteIcon />} onClick={() => deleteItem(name)}>
+                    Delete
+                  </Button>
+                </Stack>
             </Box>
           ))}
         </Stack>
       </Box>
     </Box>
+    </ThemeProvider>
   )
 }
